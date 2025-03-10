@@ -1,20 +1,37 @@
+import React, { useState, createContext } from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Text, View } from 'react-native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { AppNavigator } from './src/navigation/AppNavigator';
+import { useAuth } from './src/hooks/useAuth';
+import { User } from './src/types';
+import { CartProvider } from './src/contexts/CartContext';
+
+// Creamos un contexto para la autenticación
+export const AuthContext = createContext<{
+  isAuthenticated: boolean;
+  error: string | null;
+  loading: boolean;
+  login: (user: User) => Promise<boolean>;
+  logout: () => void;
+}>({
+  isAuthenticated: false,
+  error: null,
+  loading: false,
+  login: async () => false,
+  logout: () => {},
+});
 
 export default function App() {
+  const auth = useAuth();
+
   return (
-    <View style={styles.container}>
-      <Text>Open up App.tsx to start working on your app!</Text>
-      <StatusBar style="auto" />
-    </View>
+    <SafeAreaProvider>
+      <AuthContext.Provider value={auth}>
+        <CartProvider>
+          <StatusBar style="auto" />
+          <AppNavigator />
+        </CartProvider>
+      </AuthContext.Provider>
+    </SafeAreaProvider>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#fff',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-});
