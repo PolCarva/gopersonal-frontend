@@ -1,13 +1,14 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, FlatList, Image, TouchableOpacity, Alert, SafeAreaView, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { ButtonPrimary } from '../components/ButtonPrimary';
 import { useCartContext } from '../contexts/CartContext';
 import { createOrder, transformCartToOrderItems } from '../services/orderApi';
 import { getUserData } from '../services/authApi';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types';
+import { useCallback } from 'react';
 
 type CartScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'Cart'>;
 
@@ -15,12 +16,22 @@ export function CartScreen() {
   const navigation = useNavigation<CartScreenNavigationProp>();
   const { 
     items, 
+    loading: cartLoading, 
+    error: cartError, 
     removeFromCart, 
     updateQuantity, 
     clearCart, 
-    getTotalPrice 
+    getTotalPrice,
+    refreshCart
   } = useCartContext();
   const [loading, setLoading] = useState(false);
+
+  // Usar useFocusEffect para recargar el carrito cuando la pantalla obtiene el foco
+  useFocusEffect(
+    useCallback(() => {
+      refreshCart();
+    }, [])
+  );
 
   const handleRemoveItem = (productId: number) => {
     removeFromCart(productId);
@@ -65,7 +76,7 @@ export function CartScreen() {
       const orderItems = transformCartToOrderItems(items);
       
       // Crear el pedido en el backend
-      await createOrder({
+      const createdOrder = await createOrder({
         items: orderItems,
         totalAmount: getTotalPrice(),
         paymentMethod: 'tarjeta', // Por defecto
@@ -77,13 +88,43 @@ export function CartScreen() {
         }
       });
 
-      // Limpiar el carrito y mostrar mensaje de éxito
-      clearCart();
+      // Limpiar el carrito
+      await clearCart();
 
+      // Mostrar mensaje de éxito y navegar a la pantalla de órdenes
       Alert.alert(
         'Pedido Realizado',
-        '¡Gracias por tu compra! Tu pedido ha sido procesado correctamente y guardado en nuestra base de datos.',
-        [{ text: 'OK' }]
+        '¡Gracias por tu compra! Tu pedido ha sido procesado correctamente.',
+        [
+          { 
+            text: 'Ver mi pedido', 
+            onPress: () => {
+              console.log('Navegando al detalle del pedido con ID:', createdOrder._id);
+              // Navegar a los detalles del pedido recién creado
+              // Usamos reset para evitar problemas de navegación
+              navigation.reset({
+                index: 1,
+                routes: [
+                  { name: 'Products' },
+                  { name: 'OrderDetail', params: { orderId: createdOrder._id } }
+                ],
+              });
+            }
+          },
+          {
+            text: 'Ver todos mis pedidos',
+            onPress: () => {
+              console.log('Navegando a la lista de pedidos desde el carrito');
+              navigation.reset({
+                index: 1,
+                routes: [
+                  { name: 'Products' },
+                  { name: 'Orders' }
+                ],
+              });
+            }
+          }
+        ]
       );
     } catch (error) {
       console.error('Error al realizar el pedido:', error);
@@ -97,6 +138,32 @@ export function CartScreen() {
     }
   };
 
+  // Mostrar pantalla de carga cuando el carrito está cargando inicialmente
+  if (cartLoading && items.length === 0) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#3498db" />
+        <Text style={styles.loadingText}>Cargando carrito...</Text>
+      </View>
+    );
+  }
+
+  // Mostrar pantalla de error si hay un error y el carrito está vacío
+  if (cartError && items.length === 0) {
+    return (
+      <View style={styles.errorContainer}>
+        <Ionicons name="alert-circle-outline" size={60} color="#e74c3c" />
+        <Text style={styles.errorText}>{cartError}</Text>
+        <Text style={styles.errorSubtext}>
+          Es posible que el servidor no esté disponible o que haya problemas de conexión.
+        </Text>
+        <TouchableOpacity style={styles.retryButton} onPress={refreshCart}>
+          <Text style={styles.retryText}>Reintentar</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
   if (items.length === 0) {
     return (
       <View style={styles.emptyContainer}>
@@ -105,6 +172,12 @@ export function CartScreen() {
         <Text style={styles.emptySubtext}>
           Agrega algunos productos para comenzar a comprar
         </Text>
+        <TouchableOpacity 
+          style={styles.shopButton}
+          onPress={() => navigation.navigate('Products')}
+        >
+          <Text style={styles.shopButtonText}>Ir a Productos</Text>
+        </TouchableOpacity>
       </View>
     );
   }
@@ -112,6 +185,14 @@ export function CartScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <Text style={styles.title}>Mi Carrito</Text>
+      
+      {/* Mostrar indicador de sincronización si está cargando */}
+      {cartLoading && (
+        <View style={styles.syncContainer}>
+          <ActivityIndicator size="small" color="#3498db" />
+          <Text style={styles.syncText}>Sincronizando...</Text>
+        </View>
+      )}
       
       <FlatList
         data={items}
@@ -128,7 +209,7 @@ export function CartScreen() {
                 <TouchableOpacity 
                   style={styles.quantityButton}
                   onPress={() => handleDecreaseQuantity(item.product.id, item.quantity)}
-                  disabled={item.quantity <= 1 || loading}
+                  disabled={item.quantity <= 1 || loading || cartLoading}
                 >
                   <Text style={styles.quantityButtonText}>-</Text>
                 </TouchableOpacity>
@@ -138,7 +219,7 @@ export function CartScreen() {
                 <TouchableOpacity 
                   style={styles.quantityButton}
                   onPress={() => handleIncreaseQuantity(item.product.id, item.quantity)}
-                  disabled={loading}
+                  disabled={loading || cartLoading}
                 >
                   <Text style={styles.quantityButtonText}>+</Text>
                 </TouchableOpacity>
@@ -153,7 +234,7 @@ export function CartScreen() {
               <TouchableOpacity 
                 style={styles.removeButton}
                 onPress={() => handleRemoveItem(item.product.id)}
-                disabled={loading}
+                disabled={loading || cartLoading}
               >
                 <Ionicons name="trash-outline" size={22} color="#e74c3c" />
               </TouchableOpacity>
@@ -172,7 +253,7 @@ export function CartScreen() {
           title={loading ? "Procesando..." : "Realizar Pedido"}
           onPress={handleCheckout}
           isLoading={loading}
-          disabled={loading}
+          disabled={loading || cartLoading}
         />
       </View>
     </SafeAreaView>
@@ -207,6 +288,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     textAlign: 'center',
     marginTop: 10,
+    marginBottom: 20,
     color: '#95a5a6',
   },
   cartItem: {
@@ -254,37 +336,34 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   quantityButtonText: {
-    color: 'white',
+    color: '#fff',
     fontSize: 18,
     fontWeight: 'bold',
   },
   quantityText: {
     fontSize: 16,
-    marginHorizontal: 12,
-    fontWeight: '500',
+    marginHorizontal: 10,
+    color: '#333',
   },
   itemActions: {
     justifyContent: 'space-between',
     alignItems: 'flex-end',
+    paddingLeft: 8,
   },
   itemTotal: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: '#3498db',
+    color: '#333',
+    marginBottom: 8,
   },
   removeButton: {
     padding: 5,
   },
   footer: {
-    backgroundColor: 'white',
-    padding: 16,
-    borderRadius: 8,
-    marginTop: 'auto',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-    elevation: 3,
+    backgroundColor: '#fff',
+    paddingVertical: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#f1f1f1',
   },
   totalContainer: {
     flexDirection: 'row',
@@ -294,12 +373,81 @@ const styles = StyleSheet.create({
   },
   totalLabel: {
     fontSize: 18,
-    fontWeight: '500',
+    fontWeight: 'bold',
     color: '#333',
   },
   totalAmount: {
     fontSize: 24,
     fontWeight: 'bold',
+    color: '#3498db',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  loadingText: {
+    fontSize: 18,
+    color: '#7f8c8d',
+    marginTop: 20,
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  errorText: {
+    fontSize: 18,
+    color: '#e74c3c',
+    marginTop: 20,
+    marginBottom: 20,
+    textAlign: 'center',
+  },
+  errorSubtext: {
+    fontSize: 16,
+    textAlign: 'center',
+    marginTop: 10,
+    marginBottom: 20,
+    color: '#95a5a6',
+  },
+  retryButton: {
+    backgroundColor: '#3498db',
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 8,
+    marginTop: 16,
+  },
+  retryText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  shopButton: {
+    backgroundColor: '#3498db',
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 8,
+    marginTop: 16,
+  },
+  shopButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  syncContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 8,
+    marginBottom: 16,
+    backgroundColor: '#e8f4fc',
+    borderRadius: 8,
+  },
+  syncText: {
+    fontSize: 14,
+    marginLeft: 8,
     color: '#3498db',
   },
 }); 

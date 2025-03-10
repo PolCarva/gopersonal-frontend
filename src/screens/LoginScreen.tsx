@@ -1,21 +1,22 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, Alert, Image } from 'react-native';
+import { View, Text, StyleSheet, Alert, Image, TouchableOpacity } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { InputField } from '../components/InputField';
 import { ButtonPrimary } from '../components/ButtonPrimary';
-import { useAuth } from '../hooks/useAuth';
 import { RootStackParamList } from '../types';
+import { login as apiLogin } from '../services/authApi';
 
 type LoginScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'Login'>;
 
 export function LoginScreen() {
   const navigation = useNavigation<LoginScreenNavigationProp>();
-  const { login, loading, error } = useAuth();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [usernameError, setUsernameError] = useState('');
   const [passwordError, setPasswordError] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [loginError, setLoginError] = useState<string | null>(null);
 
   const validateForm = (): boolean => {
     let isValid = true;
@@ -38,13 +39,39 @@ export function LoginScreen() {
   };
 
   const handleLogin = async () => {
-    if (validateForm()) {
-      const success = await login({ username, password });
-      
-      if (success) {
-        navigation.navigate('Products');
-      }
+    if (!validateForm()) {
+      return;
     }
+    
+    setIsLoading(true);
+    setLoginError(null);
+    
+    try {
+      // Intentamos autenticar usando la API
+      // Asumimos que el username puede ser también un email
+      await apiLogin({ 
+        email: username, // Usamos el campo username como email
+        password 
+      });
+      
+      // Si el login es exitoso, navegamos a Productos
+      navigation.reset({
+        index: 0,
+        routes: [{ name: 'Products' }],
+      });
+    } catch (error) {
+      console.error('Error en login:', error);
+      // Mostrar un mensaje más claro sobre el error
+      setLoginError(error instanceof Error 
+        ? error.message 
+        : 'Error de conexión. Verifica que el servidor esté activo.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleRegister = () => {
+    navigation.navigate('Register');
   };
 
   return (
@@ -61,10 +88,10 @@ export function LoginScreen() {
         <Text style={styles.title}>Iniciar Sesión</Text>
         
         <InputField
-          label="Usuario"
+          label="Email"
           value={username}
           onChangeText={setUsername}
-          placeholder="Ingrese su usuario"
+          placeholder="Ingrese su email"
           error={usernameError}
         />
         
@@ -77,16 +104,26 @@ export function LoginScreen() {
           error={passwordError}
         />
 
-        {error && <Text style={styles.errorText}>{error}</Text>}
+        {(loginError) && <Text style={styles.errorText}>{loginError}</Text>}
         
         <ButtonPrimary
           title="Iniciar Sesión"
           onPress={handleLogin}
-          isLoading={loading}
+          isLoading={isLoading}
+          disabled={isLoading}
         />
         
+        <TouchableOpacity 
+          style={styles.registerLink}
+          onPress={handleRegister}
+        >
+          <Text style={styles.registerLinkText}>
+            ¿No tienes una cuenta? Regístrate aquí
+          </Text>
+        </TouchableOpacity>
+        
         <Text style={styles.hint}>
-          Pista: Usuario "usuario" y contraseña "123456"
+          Tip: Para crear una cuenta, usa el enlace de registro
         </Text>
       </View>
     </View>
@@ -136,6 +173,14 @@ const styles = StyleSheet.create({
     color: '#e74c3c',
     marginBottom: 16,
     textAlign: 'center',
+  },
+  registerLink: {
+    marginTop: 20,
+    alignItems: 'center',
+  },
+  registerLinkText: {
+    color: '#3498db',
+    fontSize: 16,
   },
   hint: {
     marginTop: 20,

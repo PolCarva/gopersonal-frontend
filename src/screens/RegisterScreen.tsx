@@ -17,6 +17,7 @@ export function RegisterScreen() {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [registerError, setRegisterError] = useState<string | null>(null);
   
   // Estados para errores de validación
   const [usernameError, setUsernameError] = useState('');
@@ -89,31 +90,58 @@ export function RegisterScreen() {
       return;
     }
 
+    setLoading(true);
+    setRegisterError(null);
+
     try {
-      setLoading(true);
+      console.log('Intentando registro con datos:', { username, email, name, password: '***' });
       
-      await register({
+      // Llamar a la API de registro
+      const userData = await register({
         username,
         email,
         password,
         name
       });
       
+      console.log('Registro exitoso:', userData._id);
+      
+      // Si llega aquí, el registro fue exitoso
       Alert.alert(
         'Registro exitoso',
         'Tu cuenta ha sido creada correctamente',
         [
           {
             text: 'OK',
-            onPress: () => navigation.navigate('Products')
+            onPress: () => navigation.reset({
+              index: 0,
+              routes: [{ name: 'Products' }],
+            })
           }
         ]
       );
     } catch (error) {
       console.error('Error en registro:', error);
+      
+      // Mensaje más descriptivo del error
+      let errorMsg = 'Error de conexión. Verifica que el servidor esté activo.';
+      
+      if (error instanceof Error) {
+        errorMsg = error.message;
+        
+        // Errores comunes
+        if (errorMsg.includes('already exists')) {
+          errorMsg = 'El usuario o correo electrónico ya está registrado';
+        } else if (errorMsg.includes('network')) {
+          errorMsg = 'Error de conexión con el servidor. Verifica tu red o que el servidor esté activo.';
+        }
+      }
+      
+      setRegisterError(errorMsg);
+      
       Alert.alert(
-        'Error',
-        error instanceof Error ? error.message : 'Ha ocurrido un error durante el registro'
+        'Error en el registro',
+        errorMsg
       );
     } finally {
       setLoading(false);
@@ -175,6 +203,8 @@ export function RegisterScreen() {
           error={confirmPasswordError}
         />
         
+        {registerError && <Text style={styles.errorText}>{registerError}</Text>}
+        
         <ButtonPrimary
           title="Registrarse"
           onPress={handleRegister}
@@ -226,6 +256,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
+    marginBottom: 40, // Añadir espacio extra al final
   },
   title: {
     fontSize: 22,
@@ -233,6 +264,12 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     textAlign: 'center',
     color: '#333',
+  },
+  errorText: {
+    color: '#e74c3c',
+    marginTop: 10,
+    marginBottom: 16,
+    textAlign: 'center',
   },
   loginLink: {
     marginTop: 20,

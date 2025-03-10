@@ -4,7 +4,6 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AppNavigator } from './src/navigation/AppNavigator';
 import { useAuth } from './src/hooks/useAuth';
 import { User } from './src/types';
-import { CartProvider } from './src/contexts/CartContext';
 
 // Creamos un contexto para la autenticación
 export const AuthContext = createContext<{
@@ -27,10 +26,8 @@ export default function App() {
   return (
     <SafeAreaProvider>
       <AuthContext.Provider value={auth}>
-        <CartProvider>
-          <StatusBar style="auto" />
-          <AppNavigator />
-        </CartProvider>
+        <StatusBar style="auto" />
+        <AppNavigator />
       </AuthContext.Provider>
     </SafeAreaProvider>
   );

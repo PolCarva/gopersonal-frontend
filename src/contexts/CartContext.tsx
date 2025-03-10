@@ -4,12 +4,15 @@ import { Product } from '../types';
 
 interface CartContextType {
   items: CartItem[];
+  loading: boolean;
+  error: string | null;
   addToCart: (product: Product, quantity: number) => void;
   removeFromCart: (productId: number) => void;
   updateQuantity: (productId: number, quantity: number) => void;
   clearCart: () => void;
   getTotalItems: () => number;
   getTotalPrice: () => number;
+  refreshCart: () => Promise<void>;
 }
 
 const CartContext = createContext<CartContextType | undefined>(undefined);

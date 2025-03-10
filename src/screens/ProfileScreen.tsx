@@ -8,7 +8,7 @@ import { InputField } from '../components/InputField';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types';
-import * as ImagePicker from 'react-native-image-picker';
+import * as ImagePicker from 'expo-image-picker';
 
 type ProfileScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'Profile'>;
 
@@ -27,15 +27,43 @@ export function ProfileScreen() {
   const [imageLoading, setImageLoading] = useState(false);
   const [orderCount, setOrderCount] = useState(0);
   const [editing, setEditing] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   
   // Estados para el formulario de edición
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   
   useEffect(() => {
-    loadUserData();
-    loadOrders();
+    checkAuthentication();
   }, []);
+  
+  const checkAuthentication = async () => {
+    try {
+      const data = await getUserData();
+      if (data) {
+        setIsAuthenticated(true);
+        loadUserData();
+        loadOrders();
+      } else {
+        setIsAuthenticated(false);
+        setLoading(false);
+        // Si no está autenticado, redirigir al login
+        navigation.reset({
+          index: 0,
+          routes: [{ name: 'Login' }],
+        });
+      }
+    } catch (error) {
+      console.error('Error al verificar autenticación:', error);
+      setIsAuthenticated(false);
+      setLoading(false);
+      // Si hay error, también redirigir al login
+      navigation.reset({
+        index: 0,
+        routes: [{ name: 'Login' }],
+      });
+    }
+  };
   
   const loadUserData = async () => {
     try {
@@ -47,7 +75,7 @@ export function ProfileScreen() {
           username: data.username,
           email: data.email,
           name: data.name || '',
-          profileImage: data.profileImage || 'https://via.placeholder.com/150'
+          profileImage: data.profileImage || ''
         });
         setName(data.name || '');
         setEmail(data.email);
@@ -72,26 +100,27 @@ export function ProfileScreen() {
   
   const handleSelectImage = async () => {
     try {
-      const options: ImagePicker.ImageLibraryOptions = {
-        mediaType: 'photo',
-        includeBase64: false,
-        maxHeight: 800,
-        maxWidth: 800,
-      };
-
-      const response = await ImagePicker.launchImageLibrary(options);
+      // Solicitar permisos para acceder a la biblioteca de imágenes
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       
-      if (response.didCancel) {
+      if (status !== 'granted') {
+        Alert.alert('Permiso denegado', 'Necesitamos permisos para acceder a tus fotos');
         return;
       }
       
-      if (response.errorCode) {
-        Alert.alert('Error', 'Ha ocurrido un error al seleccionar la imagen');
-        return;
-      }
+      // Lanzar el selector de imágenes
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: "images",
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.7,
+      });
       
-      if (response.assets && response.assets[0].uri) {
-        uploadImage(response.assets[0]);
+      console.log('Resultado de selección de imagen:', result);
+      
+      if (!result.canceled && result.assets && result.assets[0].uri) {
+        // Subir la imagen seleccionada
+        uploadImage(result.assets[0]);
       }
     } catch (error) {
       console.error('Error al seleccionar imagen:', error);
@@ -99,33 +128,61 @@ export function ProfileScreen() {
     }
   };
   
-  const uploadImage = async (image: ImagePicker.Asset) => {
+  const uploadImage = async (image: ImagePicker.ImagePickerAsset) => {
     try {
       setImageLoading(true);
       
+      // Crear el objeto FormData
       const formData = new FormData();
       formData.append('profileImage', {
-        name: image.fileName || 'photo.jpg',
-        type: image.type,
-        uri: Platform.OS === 'ios' ? image.uri?.replace('file://', '') : image.uri,
+        uri: image.uri,
+        type: 'image/jpeg',
+        name: 'profile-image.jpg',
       } as any);
       
+      console.log('Preparando subida de imagen:', image.uri);
+      
+      // Intentar subir la imagen (con reintentos automáticos)
       const result = await uploadProfileImage(formData);
+      console.log('Respuesta de servidor:', result);
       
       if (userData && result.profileImage) {
+        // Actualizar inmediatamente la imagen en el estado local
         setUserData({
           ...userData,
           profileImage: result.profileImage
         });
         
-        // Recargar datos del usuario
-        await loadUserData();
+        // Esperar a que se actualice la imagen en el servidor antes de recargar
+        setTimeout(async () => {
+          try {
+            // Recargar datos del usuario desde el servidor
+            await loadUserData();
+            console.log('Datos de usuario recargados correctamente');
+          } catch (reloadError) {
+            console.error('Error al recargar datos después de actualizar imagen:', reloadError);
+            // Continuar aunque falle la recarga, ya tenemos la imagen actualizada localmente
+          }
+        }, 1000);
+        
+        Alert.alert('Éxito', 'Imagen de perfil actualizada correctamente');
+      } else {
+        console.warn('No se pudo actualizar la imagen: respuesta inválida', result);
+        Alert.alert('Atención', 'La imagen se subió pero hubo un problema al actualizar tu perfil. Intenta recargar la app.');
       }
-      
-      Alert.alert('Éxito', 'Imagen de perfil actualizada correctamente');
     } catch (error) {
       console.error('Error al subir imagen:', error);
-      Alert.alert('Error', 'No se pudo subir la imagen de perfil');
+      
+      // Mensaje más detallado según el tipo de error
+      if (error instanceof TypeError && error.message.includes('Network')) {
+        Alert.alert(
+          'Error de conexión', 
+          'Hubo un problema con la conexión al servidor. Verifica tu conexión a Internet e intenta nuevamente.',
+          [{ text: 'Entendido' }]
+        );
+      } else {
+        Alert.alert('Error', 'No se pudo subir la imagen de perfil. Intenta nuevamente más tarde.');
+      }
     } finally {
       setImageLoading(false);
     }
@@ -178,6 +235,17 @@ export function ProfileScreen() {
     );
   }
   
+  if (!isAuthenticated) {
+    return (
+      <View style={styles.errorContainer}>
+        <Text style={styles.errorText}>Necesitas iniciar sesión para ver tu perfil</Text>
+        <TouchableOpacity onPress={() => navigation.navigate('Login')}>
+          <Text style={styles.retryText}>Iniciar sesión</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+  
   if (!userData) {
     return (
       <View style={styles.errorContainer}>
@@ -196,9 +264,13 @@ export function ProfileScreen() {
           {imageLoading ? (
             <ActivityIndicator size="large" color="#fff" style={styles.imageLoading} />
           ) : (
-            <Image 
-              source={{ uri: userData.profileImage }} 
-              style={styles.profileImage} 
+            <Image
+              style={styles.profileImage}
+              source={
+                userData.profileImage 
+                  ? { uri: userData.profileImage } 
+                  : require('../../assets/placeholder.png')
+              }
             />
           )}
           <TouchableOpacity 
@@ -284,7 +356,16 @@ export function ProfileScreen() {
             <View style={styles.actionsSection}>
               <TouchableOpacity 
                 style={styles.actionButton}
-                onPress={() => navigation.navigate('Orders')}
+                onPress={() => {
+                  console.log('Navegando a la pantalla de pedidos desde perfil - con método directo');
+                  
+                  // Usar un enfoque directo y sin ambigüedades para la navegación
+                  // En lugar de navigate, usamos replace para evitar que se acumule en el historial
+                  navigation.reset({
+                    index: 0,
+                    routes: [{ name: 'Orders' }],
+                  });
+                }}
               >
                 <Ionicons name="list" size={24} color="#3498db" />
                 <Text style={styles.actionButtonText}>Mis Pedidos</Text>
