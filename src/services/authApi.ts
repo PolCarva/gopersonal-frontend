@@ -2,7 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // URL del backend - ajustar según tu entorno
 // Para emulador Android
-const API_URL = 'http://10.0.2.2:5000/api';
+const API_URL = 'https://gopersonal-backend-production.up.railway.app/api';
 // Para dispositivo físico o iOS, usa tu IP local 
 // const API_URL = 'http://192.168.1.X:5000/api'; // Reemplaza X con tu IP
 // Para web o iOS usando localhost

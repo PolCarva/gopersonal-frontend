@@ -69,29 +69,21 @@ tienda-app/
    cd tienda-app
    ```
 
-2. Configura las variables de entorno
-   - Crea un archivo `.env` basado en `.env.example`
-   - Actualiza la URL del API según tu entorno:
-     ```
-     API_URL=http://localhost:5000/api
-     STRIPE_PUBLIC_KEY=tu_clave_publica_de_stripe
-     ```
-
-3. Instala las dependencias
+2. Instala las dependencias
    ```bash
    npm install
    # o
    yarn install
    ```
 
-4. Inicia el servidor de desarrollo
+3. Inicia el servidor de desarrollo
    ```bash
    npm start
    # o
    yarn start
    ```
 
-5. Escanea el código QR con la app Expo Go en tu dispositivo o ejecuta en un emulador
+4. Escanea el código QR con la app Expo Go en tu dispositivo o ejecuta en un emulador
    ```bash
    npm run android
    # o
@@ -103,12 +95,6 @@ tienda-app/
 - `npm start` - Inicia el servidor de desarrollo Expo
 - `npm run android` - Ejecuta la app en un emulador/dispositivo Android
 - `npm run ios` - Ejecuta la app en un simulador/dispositivo iOS
-- `npm run web` - Ejecuta la app en el navegador web
-- `npm run eject` - Expulsa la app de Expo (solo si es necesario)
-- `npm run build:android` - Genera el archivo APK para distribución
-- `npm run build:ios` - Prepara el build para su distribución en App Store
-- `npm run lint` - Ejecuta el linter para verificar la calidad del código
-- `npm run test` - Ejecuta las pruebas unitarias
 
 ## Autenticación
 
@@ -166,15 +152,3 @@ La aplicación se comunica con el backend a través de una API RESTful:
 - **Error de conexión a la API**: Verifica que el backend esté ejecutándose y que la URL en el archivo `.env` sea correcta
 - **Problemas con la carga de imágenes**: Asegúrate de tener los permisos correctos en tu dispositivo
 - **Tokens expirados**: La sesión se cerrará automáticamente cuando el token expire, vuelve a iniciar sesión
-
-## Contribución
-
-1. Haz fork del repositorio
-2. Crea una rama para tu feature (`git checkout -b feature/amazing-feature`)
-3. Realiza tus cambios y haz commit (`git commit -m 'Add some amazing feature'`)
-4. Haz push a la rama (`git push origin feature/amazing-feature`)
-5. Abre un Pull Request
-
-## Licencia
-
-Este proyecto está licenciado bajo la Licencia MIT. Ver el archivo LICENSE para más detalles.
