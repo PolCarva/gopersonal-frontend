@@ -59,7 +59,7 @@ tienda-app/
 - Node.js (versión 16 o superior)
 - npm o yarn
 - Expo CLI
-- Backend API en ejecución (ver repositorio backend)
+- Backend API en ejecución [ver repositorio backend](https://github.com/PolCarva/gopersonal-backend)
 
 ## Instalación
 
