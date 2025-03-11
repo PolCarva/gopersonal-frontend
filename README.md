@@ -2,23 +2,6 @@
 
 Aplicación de comercio electrónico móvil desarrollada con React Native, Expo y TypeScript.
 
-## Características Principales
-
-- Autenticación completa con JWT
-- Catálogo de productos con filtros y búsqueda avanzada
-- Gestión de carrito de compras en tiempo real
-- Proceso de checkout optimizado
-- Historial de pedidos detallado
-- Perfil de usuario personalizable con carga de imágenes
-- Modo oscuro/claro con cambio automático
-- Soporte multiidioma (Español/Inglés)
-- Notificaciones push personalizadas
-- Animaciones fluidas con Reanimated
-- Sincronización offline-first
-- Pagos integrados con Stripe
-- Favoritos y listas de deseos
-- Reseñas y calificaciones de productos
-- Escaneo de códigos QR/barras
 
 ## Tecnologías Utilizadas
 
@@ -39,17 +22,14 @@ Aplicación de comercio electrónico móvil desarrollada con React Native, Expo 
 tienda-app/
 ├── assets/           # Imágenes, fuentes y recursos estáticos
 ├── src/
-│   ├── api/          # Configuración de API y servicios
 │   ├── components/   # Componentes reutilizables
-│   ├── constants/    # Constantes y configuración
+│   ├── contexts/     # Manejo de estados globales
 │   ├── hooks/        # Custom hooks
 │   ├── navigation/   # Configuración de navegación
-│   ├── redux/        # Estado global (slices, store)
 │   ├── screens/      # Pantallas de la aplicación
 │   ├── services/     # Servicios para autenticación, etc.
 │   ├── types/        # Definiciones de TypeScript
 │   └── utils/        # Funciones utilitarias
-├── .env              # Variables de entorno (no incluidas en el repo)
 ├── App.tsx           # Punto de entrada de la aplicación
 └── package.json      # Dependencias del proyecto
 ```
@@ -115,15 +95,6 @@ La aplicación utiliza tokens JWT para la autenticación:
 - **Checkout**: Proceso de pago y finalización de compra
 - **Pedidos**: Historial y detalles de pedidos realizados
 - **Perfil**: Información del usuario y opciones de configuración
-
-## Integración con Backend
-
-La aplicación se comunica con el backend a través de una API RESTful:
-
-- Autenticación mediante `/api/users/login` y `/api/users/register`
-- Gestión del perfil con `/api/profiles`
-- Manejo de pedidos con `/api/orders`
-- Gestión del carrito con `/api/carts`
 
 ## Despliegue
 

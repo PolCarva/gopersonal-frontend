@@ -1,12 +1,14 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // URL del backend - ajustar según tu entorno
-// Para emulador Android
 const API_URL = 'https://gopersonal-backend-production.up.railway.app/api';
-// Para dispositivo físico o iOS, usa tu IP local 
-// const API_URL = 'http://192.168.1.X:5000/api'; // Reemplaza X con tu IP
-// Para web o iOS usando localhost
-// const API_URL = 'http://localhost:5000/api';
+// URL para desarrollo local (descomentar según necesidad)
+// const API_URL = 'http://10.0.2.2:5000/api'; // Para emulador Android
+// const API_URL = 'http://192.168.1.X:5000/api'; // Para dispositivo físico (reemplaza X con tu IP)
+// const API_URL = 'http://localhost:5000/api'; // Para web o iOS
+
+// Variable global para almacenar el token en memoria
+let memoryToken: string | null = null;
 
 export interface LoginData {
   email: string;
@@ -32,7 +34,10 @@ export interface UserData {
 // Almacenamiento del token
 export const storeToken = async (token: string) => {
   try {
+    // Guardar en memoria y AsyncStorage
+    memoryToken = token;
     await AsyncStorage.setItem('userToken', token);
+    console.log('Token guardado en memoria y AsyncStorage');
   } catch (error) {
     console.error('Error al guardar el token:', error);
   }
@@ -40,7 +45,18 @@ export const storeToken = async (token: string) => {
 
 export const getToken = async (): Promise<string | null> => {
   try {
-    return await AsyncStorage.getItem('userToken');
+    // Primero intentar obtener de memoria para evitar operaciones async
+    if (memoryToken) {
+      return memoryToken;
+    }
+    
+    // Si no está en memoria, buscar en AsyncStorage
+    const token = await AsyncStorage.getItem('userToken');
+    if (token) {
+      // Actualizar variable en memoria
+      memoryToken = token;
+    }
+    return token;
   } catch (error) {
     console.error('Error al obtener el token:', error);
     return null;
@@ -49,7 +65,10 @@ export const getToken = async (): Promise<string | null> => {
 
 export const removeToken = async () => {
   try {
+    // Limpiar memoria y AsyncStorage
+    memoryToken = null;
     await AsyncStorage.removeItem('userToken');
+    console.log('Token eliminado de memoria y AsyncStorage');
   } catch (error) {
     console.error('Error al eliminar el token:', error);
   }
@@ -80,6 +99,15 @@ export const removeUserData = async () => {
   } catch (error) {
     console.error('Error al eliminar datos del usuario:', error);
   }
+};
+
+// Helper para obtener headers autorizados
+export const getAuthHeaders = async () => {
+  const token = await getToken();
+  return {
+    'Content-Type': 'application/json',
+    'Authorization': token ? `Bearer ${token}` : ''
+  };
 };
 
 // API de autenticación
@@ -114,9 +142,25 @@ export const login = async (loginData: LoginData): Promise<UserData> => {
     const userData: UserData = await response.json();
     console.log('Login exitoso, datos:', userData);
     
+    // Verificar que el token existe
+    if (!userData.token) {
+      console.error('Error: El servidor no devolvió un token de autenticación');
+      throw new Error('No se recibió un token de autenticación válido');
+    }
+    
+    console.log('Token recibido (primeros 15 caracteres):', userData.token.substring(0, 15) + '...');
+    
     // Guardar token y datos de usuario
     await storeToken(userData.token);
     await storeUserData(userData);
+    
+    // Verificar que el token se guardó correctamente
+    const storedToken = await getToken();
+    if (storedToken) {
+      console.log('Token guardado correctamente');
+    } else {
+      console.error('Error: No se pudo verificar el token guardado');
+    }
     
     return userData;
   } catch (error) {
@@ -326,4 +370,28 @@ export const uploadProfileImage = async (formData: FormData): Promise<{ profileI
   
   // Iniciar el proceso de subida con reintentos
   return attemptUpload();
+};
+
+// Función para refrescar el token cuando sea necesario
+export const refreshToken = async (): Promise<boolean> => {
+  try {
+    console.log('Intentando refrescar token...');
+    
+    // Obtener los datos del usuario de AsyncStorage
+    const userData = await getUserData();
+    if (!userData || !userData.token) {
+      console.error('No hay datos de usuario o token para refrescar');
+      return false;
+    }
+    
+    // Asegurarse de que el token está actualizado en memoria y AsyncStorage
+    memoryToken = userData.token;
+    await AsyncStorage.setItem('userToken', userData.token);
+    
+    console.log('Token refrescado exitosamente');
+    return true;
+  } catch (error) {
+    console.error('Error al refrescar token:', error);
+    return false;
+  }
 }; 

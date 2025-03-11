@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Image, TouchableOpacity, ScrollView, ActivityIndicator, Alert, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { getUserData, uploadProfileImage, updateProfile, logout } from '../services/authApi';
+import { getUserData, uploadProfileImage, updateProfile, logout, storeToken, getToken, refreshToken } from '../services/authApi';
 import { getUserOrders } from '../services/orderApi';
 import { ButtonPrimary } from '../components/ButtonPrimary';
 import { InputField } from '../components/InputField';
@@ -70,6 +70,16 @@ export function ProfileScreen() {
       setLoading(true);
       const data = await getUserData();
       if (data) {
+        // Verificar que el token existe y está guardado correctamente
+        if (!data.token) {
+          console.error('Error: Token no encontrado en los datos de usuario');
+          throw new Error('No se encontró el token en los datos de usuario');
+        }
+        
+        // Asegurarse de que el token esté actualizado en AsyncStorage y en memoria
+        await storeToken(data.token);
+        console.log('Token actualizado antes de cargar datos');
+        
         setUserData({
           _id: data._id,
           username: data.username,
@@ -90,6 +100,17 @@ export function ProfileScreen() {
   
   const loadOrders = async () => {
     try {
+      // Primero refrescar el token para garantizar que está actualizado
+      await refreshToken();
+      
+      // Verificar que tengamos el token antes de hacer la petición
+      const token = await getToken();
+      if (!token) {
+        console.error('Error: No hay token disponible para cargar pedidos');
+        return;
+      }
+      
+      console.log('Token disponible, cargando pedidos...');
       const orders = await getUserOrders();
       setOrderCount(orders.length);
     } catch (error) {
