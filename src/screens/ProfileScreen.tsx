@@ -132,15 +132,50 @@ export function ProfileScreen() {
     try {
       setImageLoading(true);
       
-      // Crear el objeto FormData
-      const formData = new FormData();
-      formData.append('profileImage', {
-        uri: image.uri,
-        type: 'image/jpeg',
-        name: 'profile-image.jpg',
-      } as any);
+      // Obtener la extensión de archivo de la URI
+      const uriParts = image.uri.split('.');
+      const fileExtension = uriParts[uriParts.length - 1];
       
-      console.log('Preparando subida de imagen:', image.uri);
+      // Determinar el tipo MIME basado en la extensión
+      let mimeType = 'image/jpeg'; // Por defecto
+      if (fileExtension) {
+        switch (fileExtension.toLowerCase()) {
+          case 'jpg':
+          case 'jpeg':
+            mimeType = 'image/jpeg';
+            break;
+          case 'png':
+            mimeType = 'image/png';
+            break;
+          case 'gif':
+            mimeType = 'image/gif';
+            break;
+          case 'heic':
+            mimeType = 'image/heic';
+            break;
+        }
+      }
+      
+      // Crear el nombre del archivo con extensión correcta
+      const fileName = `profile-image-${Date.now()}.${fileExtension}`;
+      
+      console.log(`Preparando archivo: ${fileName} (${mimeType})`);
+      
+      // Crear el objeto FormData con metadatos correctos
+      const formData = new FormData();
+      
+      // En iOS/Android necesitamos usar el formato correcto para el archivo
+      const fileData = {
+        uri: Platform.OS === 'android' ? image.uri : image.uri.replace('file://', ''),
+        type: mimeType,
+        name: fileName,
+        size: image.fileSize || 0
+      };
+      
+      console.log('Datos del archivo:', JSON.stringify(fileData));
+      formData.append('profileImage', fileData as any);
+      
+      console.log('FormData creado, iniciando subida...');
       
       // Intentar subir la imagen (con reintentos automáticos)
       const result = await uploadProfileImage(formData);
@@ -181,7 +216,12 @@ export function ProfileScreen() {
           [{ text: 'Entendido' }]
         );
       } else {
-        Alert.alert('Error', 'No se pudo subir la imagen de perfil. Intenta nuevamente más tarde.');
+        // Intenta extraer el mensaje de error para mostrar información más detallada
+        const errorMessage = error instanceof Error 
+          ? error.message 
+          : 'No se pudo subir la imagen de perfil';
+          
+        Alert.alert('Error', `No se pudo subir la imagen: ${errorMessage}`);
       }
     } finally {
       setImageLoading(false);

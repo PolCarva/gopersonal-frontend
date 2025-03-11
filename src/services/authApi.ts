@@ -223,46 +223,99 @@ export const uploadProfileImage = async (formData: FormData): Promise<{ profileI
       }
       
       console.log(`Intento ${attempt}/${maxAttempts}: Enviando solicitud de subida de imagen al servidor`);
+      console.log('URL de destino:', `${API_URL}/profiles/upload-photo`);
+      
+      // Log para ver qué contiene el FormData
+      console.log('Contenido de FormData:');
+      // Usar cualquier para evitar el error en TypeScript con FormData.entries()
+      const formDataAny = formData as any;
+      for (let [key, value] of formDataAny.entries()) {
+        if (value instanceof Blob) {
+          console.log(`${key}: Blob/Archivo (tamaño: ${value.size} bytes, tipo: ${value.type})`);
+        } else {
+          console.log(`${key}: ${value}`);
+        }
+      }
+      
+      // Usar fetch con un timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 segundos de timeout
+      
       const response = await fetch(`${API_URL}/profiles/upload-photo`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`
         },
         body: formData,
+        signal: controller.signal
       });
       
+      // Limpiar el timeout ya que la solicitud terminó
+      clearTimeout(timeoutId);
+      
       console.log('Respuesta del servidor código:', response.status);
+      console.log('Headers de respuesta:', JSON.stringify([...response.headers.entries()]));
+      
+      // Para errores 500, intentar leer el texto de respuesta directamente
+      if (response.status === 500) {
+        const errorText = await response.text();
+        console.error('Error 500 del servidor, respuesta completa:', errorText);
+        
+        // Si estamos en el último intento, lanzar error con el texto de respuesta
+        if (attempt >= maxAttempts) {
+          throw new Error(`Error del servidor (500): ${errorText}`);
+        }
+        
+        // Reintentar después de un error 500
+        console.log(`Reintentando después de error 500... (intento ${attempt + 1}/${maxAttempts})`);
+        await new Promise(resolve => setTimeout(resolve, 2000)); // Esperar 2 segundos
+        return attemptUpload(attempt + 1, maxAttempts);
+      }
       
       if (!response.ok) {
-        const errorData = await response.json();
-        console.error('Error en respuesta de subida:', errorData);
-        throw new Error(errorData.message || 'Error al subir la imagen');
+        try {
+          const errorData = await response.json();
+          console.error('Error en respuesta de subida:', errorData);
+          throw new Error(errorData.message || 'Error al subir la imagen');
+        } catch (jsonError) {
+          // Si no se puede parsear como JSON, usar el texto directamente
+          const errorText = await response.text();
+          console.error('Error en respuesta (no es JSON):', errorText);
+          throw new Error(`Error al subir la imagen: ${response.status} - ${errorText}`);
+        }
       }
 
-      const responseData = await response.json();
-      console.log('Datos de respuesta del servidor:', responseData);
-      
-      // También actualizar los datos del usuario en AsyncStorage
-      const userData = await getUserData();
-      if (userData && responseData.profileImage) {
-        userData.profileImage = responseData.profileImage;
-        await storeUserData(userData);
-        console.log('Datos de usuario actualizados en storage con nueva imagen');
+      try {
+        const responseData = await response.json();
+        console.log('Datos de respuesta del servidor:', responseData);
+        
+        // También actualizar los datos del usuario en AsyncStorage
+        const userData = await getUserData();
+        if (userData && responseData.profileImage) {
+          userData.profileImage = responseData.profileImage;
+          await storeUserData(userData);
+          console.log('Datos de usuario actualizados en storage con nueva imagen');
+        }
+        
+        return responseData;
+      } catch (jsonError) {
+        console.error('Error al parsear respuesta JSON:', jsonError);
+        const responseText = await response.text();
+        console.log('Respuesta como texto:', responseText);
+        throw new Error('La respuesta del servidor no es JSON válido');
       }
-      
-      return responseData;
     } catch (error) {
       console.error(`Error en intento ${attempt}/${maxAttempts}:`, error);
       
       // Si es un error de red y no hemos agotado los intentos, reintentamos
       if (
-        error instanceof TypeError && 
-        error.message.includes('Network') && 
+        (error instanceof TypeError && error.message.includes('Network') || 
+         (error as any).name === 'AbortError') && 
         attempt < maxAttempts
       ) {
-        console.log(`Reintentando en 1 segundo... (intento ${attempt + 1}/${maxAttempts})`);
-        // Espera 1 segundo antes de reintentar
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        console.log(`Reintentando en 2 segundos... (intento ${attempt + 1}/${maxAttempts})`);
+        // Espera 2 segundos antes de reintentar
+        await new Promise(resolve => setTimeout(resolve, 2000));
         return attemptUpload(attempt + 1, maxAttempts);
       }
       
